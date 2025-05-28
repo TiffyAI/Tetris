@@ -246,10 +246,42 @@
       scoreDisplay.textContent = "Score: " + score.toFixed(8);
     }
 
+    function handleTouch(action) {
+      if (gameOver) return;
+      if (action === 'left') piece.pos.x--;
+      if (action === 'right') piece.pos.x++;
+      if (action === 'down') playerDrop();
+      if (action === 'rotate') {
+        piece.matrix = piece.matrix[0].map((_, i) => piece.matrix.map(row => row[i])).reverse();
+        if (collide(board, piece)) {
+          piece.matrix = piece.matrix[0].map((_, i) => piece.matrix.map(row => row[row.length - 1 - i]));
+        }
+      }
+    }
+
     document.addEventListener("keydown", e => {
       if (gameOver) return;
-      if (e.key === "ArrowLeft") {
-        piece.pos.x--;
-       
-::contentReference[oaicite:19]{index=19}
- 
+      if (e.key === "ArrowLeft") piece.pos.x--;
+      else if (e.key === "ArrowRight") piece.pos.x++;
+      else if (e.key === "ArrowDown") playerDrop();
+      else if (e.key === "ArrowUp") handleTouch("rotate");
+    });
+
+    restartBtn.addEventListener("click", () => {
+      for (let y = 0; y < ROWS; y++) {
+        board[y].fill(0);
+      }
+      score = 0;
+      localStorage.setItem('tetrusScore', score);
+      updateScore();
+      gameOver = false;
+      resetPiece();
+      update();
+    });
+
+    updateScore();
+    resetPiece();
+    update();
+  </script>
+</body>
+</html>
