@@ -40,10 +40,15 @@
       text-shadow: 0 0 5px #0ff;
     }
 
-    #restartBtn {
+    .button-row {
+      display: flex;
+      gap: 10px;
       margin-top: 10px;
-      padding: 10px 20px;
-      font-size: 14px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      font-size: 13px;
       font-weight: bold;
       background: linear-gradient(90deg, #00ffff, #ff00ff);
       border: none;
@@ -54,82 +59,54 @@
       cursor: pointer;
     }
 
-    #restartBtn:active {
+    .btn:active {
       transform: scale(0.95);
       box-shadow: 0 0 30px #f0f;
     }
 
-    #withdrawBtn {
-      margin-top: 12px;
-      padding: 12px 24px;
-      font-size: 16px;
-      font-weight: bold;
-      background: linear-gradient(90deg, #4af0f8, #9055ff);
-      border: none;
-      border-radius: 12px;
-      color: white;
-      text-shadow: 0 0 5px #fff;
-      box-shadow: 0 0 25px #4af0f8;
-      cursor: pointer;
-    }
-
-    #withdrawBtn:hover {
-      background: linear-gradient(90deg, #9055ff, #4af0f8);
-      box-shadow: 0 0 35px #9055ff;
-    }
-
-    #withdrawBtn:active {
-      transform: scale(0.97);
-    }
-
     #touch-controls {
-      margin-top: 12px;
+      position: absolute;
+      bottom: 15px;
+      width: 100%;
       display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .control-row {
-      display: flex;
-      justify-content: center;
-      margin: 4px 0;
+      justify-content: space-between;
+      padding: 0 20px;
     }
 
     .control-btn {
       background: rgba(0, 255, 255, 0.2);
       border: 2px solid #0ff;
       border-radius: 10px;
-      width: 50px;
-      height: 50px;
-      font-size: 22px;
+      width: 60px;
+      height: 60px;
+      font-size: 26px;
       color: #fff;
       text-shadow: 0 0 5px #0ff;
       box-shadow: 0 0 10px #00ffff;
-      margin: 0 5px;
       cursor: pointer;
     }
 
-    .control-btn:active {
-      background-color: rgba(0, 255, 255, 0.5);
+    .center-btn {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
     }
   </style>
 </head>
 <body>
   <h1>TiffyAI Tetrus</h1>
   <canvas id="tetris" width="300" height="600"></canvas>
-  <div id="score">Score: 0.00</div>
-  <button id="restartBtn">RESTART</button>
-  <button id="withdrawBtn">💸 WITHDRAW TIFFY</button>
+  <div id="score">Score: 0.00000000</div>
+
+  <div class="button-row">
+    <button id="restartBtn" class="btn">RESTART</button>
+    <button id="withdrawBtn" class="btn">WITHDRAW</button>
+  </div>
 
   <div id="touch-controls">
-    <div class="control-row">
-      <button class="control-btn" onclick="handleTouch('rotate')">🔄</button>
-    </div>
-    <div class="control-row">
-      <button class="control-btn" onclick="handleTouch('left')">⬅️</button>
-      <button class="control-btn" onclick="handleTouch('down')">⬇️</button>
-      <button class="control-btn" onclick="handleTouch('right')">➡️</button>
-    </div>
+    <button class="control-btn" onclick="handleTouch('left')">⬅️</button>
+    <button class="control-btn center-btn" onclick="handleTouch('rotate')">🔄</button>
+    <button class="control-btn" onclick="handleTouch('right')">➡️</button>
   </div>
 
   <audio id="rowSound" src="row.wav" preload="auto"></audio>
@@ -299,8 +276,7 @@
     });
 
     withdrawBtn.addEventListener("click", () => {
-      alert("🔔 Withdrawal triggered!\n\nTIFFY to withdraw: " + score.toFixed(2));
-      // TODO: Implement contract + wallet payout logic here
+      alert("Withdraw button clicked. (Blockchain logic to be added)");
     });
 
     updateScore();
