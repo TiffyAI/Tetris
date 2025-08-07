@@ -40,33 +40,33 @@
       text-shadow: 0 0 5px #0ff;
     }
 
-    .button-row {
+    .btn-row {
       display: flex;
       gap: 10px;
-      margin-top: 10px;
+      margin: 10px;
     }
 
-    .btn {
-      padding: 8px 16px;
+    .tiffy-btn {
+      padding: 10px 15px;
       font-size: 13px;
       font-weight: bold;
-      background: linear-gradient(90deg, #00ffff, #ff00ff);
+      background: linear-gradient(90deg, #00ffff, #9055ff);
       border: none;
       border-radius: 10px;
       color: white;
       text-shadow: 0 0 5px #fff;
-      box-shadow: 0 0 20px #0ff;
+      box-shadow: 0 0 15px #0ff;
       cursor: pointer;
     }
 
-    .btn:active {
+    .tiffy-btn:active {
       transform: scale(0.95);
-      box-shadow: 0 0 30px #f0f;
+      box-shadow: 0 0 25px #f0f;
     }
 
     #touch-controls {
       position: absolute;
-      bottom: 15px;
+      bottom: 20px;
       width: 100%;
       display: flex;
       justify-content: space-between;
@@ -79,11 +79,16 @@
       border-radius: 10px;
       width: 60px;
       height: 60px;
-      font-size: 26px;
+      font-size: 24px;
       color: #fff;
       text-shadow: 0 0 5px #0ff;
       box-shadow: 0 0 10px #00ffff;
+      margin: 0 5px;
       cursor: pointer;
+    }
+
+    .control-btn:active {
+      background-color: rgba(0, 255, 255, 0.5);
     }
 
     .center-btn {
@@ -96,13 +101,14 @@
 <body>
   <h1>TiffyAI Tetrus</h1>
   <canvas id="tetris" width="300" height="600"></canvas>
-  <div id="score">Score: 0.00000000</div>
+  <div id="score">💰 TIFFY: 0.00</div>
 
-  <div class="button-row">
-    <button id="restartBtn" class="btn">RESTART</button>
-    <button id="withdrawBtn" class="btn">WITHDRAW</button>
+  <div class="btn-row">
+    <button id="restartBtn" class="tiffy-btn">RESTART</button>
+    <button id="withdrawBtn" class="tiffy-btn">WITHDRAW</button>
   </div>
 
+  <!-- Mobile Controls -->
   <div id="touch-controls">
     <button class="control-btn" onclick="handleTouch('left')">⬅️</button>
     <button class="control-btn center-btn" onclick="handleTouch('rotate')">🔄</button>
@@ -215,7 +221,7 @@
       piece.pos.x = Math.floor(COLS / 2) - Math.floor(piece.matrix[0].length / 2);
       if (collide(board, piece)) {
         overSound.play();
-        alert("Game Over! Score: " + score.toFixed(2));
+        alert("Game Over! 💰 TIFFY: " + score.toFixed(2));
         gameOver = true;
       }
     }
@@ -239,7 +245,7 @@
     }
 
     function updateScore() {
-      scoreDisplay.textContent = "Score: " + score.toFixed(2);
+      scoreDisplay.textContent = "💰 TIFFY: " + score.toFixed(2);
     }
 
     function handleTouch(action) {
@@ -267,16 +273,13 @@
       for (let y = 0; y < ROWS; y++) {
         board[y].fill(0);
       }
-      score = 0;
-      localStorage.setItem('tetrusScore', score);
-      updateScore();
       gameOver = false;
       resetPiece();
       update();
     });
 
     withdrawBtn.addEventListener("click", () => {
-      alert("Withdraw button clicked. (Blockchain logic to be added)");
+      alert("🔄 Withdraw logic to be implemented with smart contract + wallet interaction.");
     });
 
     updateScore();
