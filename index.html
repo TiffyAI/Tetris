@@ -95,7 +95,7 @@
       left: 50%;
       transform: translate(-50%, -50%);
       opacity: 0;
-      animation: bonusFade 2s ease-out forwards;
+      animation: none;
       z-index: 999;
     }
 
@@ -121,7 +121,7 @@
     <button id="withdrawBtn">WITHDRAW</button>
   </div>
 
-  <!-- Touch Controls (now under buttons) -->
+  <!-- Touch Controls -->
   <div id="touch-controls">
     <button class="control-btn" onclick="handleTouch('left')">⬅️</button>
     <button class="control-btn" onclick="handleTouch('rotate')">🔄</button>
@@ -147,6 +147,7 @@
     const restartBtn = document.getElementById("restartBtn");
     const withdrawBtn = document.getElementById("withdrawBtn");
     const scoreDisplay = document.getElementById("score");
+    const bonusImg = document.getElementById("bonus-animation");
 
     const ROWS = 20;
     const COLS = 10;
@@ -174,13 +175,16 @@
     }
 
     function createPiece(type) {
-      if (type === 'T') return [[0,1,0],[1,1,1],[0,0,0]];
-      if (type === 'O') return [[2,2],[2,2]];
-      if (type === 'L') return [[0,0,3],[3,3,3],[0,0,0]];
-      if (type === 'J') return [[4,0,0],[4,4,4],[0,0,0]];
-      if (type === 'I') return [[0,0,0,0],[5,5,5,5],[0,0,0,0]];
-      if (type === 'S') return [[0,6,6],[6,6,0],[0,0,0]];
-      if (type === 'Z') return [[7,7,0],[0,7,7],[0,0,0]];
+      const pieces = {
+        T: [[0,1,0],[1,1,1],[0,0,0]],
+        O: [[2,2],[2,2]],
+        L: [[0,0,3],[3,3,3],[0,0,0]],
+        J: [[4,0,0],[4,4,4],[0,0,0]],
+        I: [[0,0,0,0],[5,5,5,5],[0,0,0,0]],
+        S: [[0,6,6],[6,6,0],[0,0,0]],
+        Z: [[7,7,0],[0,7,7],[0,0,0]]
+      };
+      return pieces[type];
     }
 
     let piece = {
@@ -234,8 +238,7 @@
 
       if (rowsCleared > 0) {
         rowSound.play();
-        let reward = rowsCleared * 0.05;
-        score += reward;
+        score += rowsCleared * 0.05;
 
         if (rowsCleared >= 2) {
           score += 1;
@@ -295,7 +298,6 @@
     }
 
     function triggerBonusAnimation() {
-      const bonusImg = document.getElementById("bonus-animation");
       bonusImg.style.animation = "none";
       void bonusImg.offsetWidth;
       bonusImg.style.animation = "bonusFade 2s ease-out forwards";
