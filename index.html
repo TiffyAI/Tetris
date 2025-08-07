@@ -4,66 +4,63 @@
   <meta charset="UTF-8" />
   <title>TiffyAI Tetrus</title>
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <!-- Web3 & Web3Modal -->
-  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script> <!-- Include web3 -->
-  <script src="https://cdn.jsdelivr.net/npm/web3modal@1.9.12/dist/index.js"></script> <!-- Web3Modal support :contentReference[oaicite:0]{index=0} -->
+  <!-- Web3 & Web3Modal CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/web3modal@1.9.12/dist/index.js"></script>
   <style>
-    /* Your existing glowing neon styles here... omitted for brevity */
+    /* ... (your neon, metallic styles go here) ... */
   </style>
 </head>
 <body>
-  <!-- Game Canvas & Controls -->
   <h1>TiffyAI Tetrus</h1>
   <canvas id="tetris" width="300" height="600"></canvas>
   <div id="score">💰 TIFFY: 0.00000000</div>
-
   <div class="action-buttons">
     <button id="restartBtn">RESTART</button>
     <button id="withdrawBtn">WITHDRAW</button>
   </div>
-
   <div id="touch-controls">
     <button class="control-btn" onclick="handleTouch('left')">⬅️</button>
     <button class="control-btn" onclick="handleTouch('rotate')">🔄</button>
     <button class="control-btn" onclick="handleTouch('right')">➡️</button>
   </div>
-
   <img id="bonus-animation" src="TiffyAI-Token.png" width="120" />
-
   <!-- Sounds -->
-  <audio id="rowSound" src="row.wav" preload="auto"></audio>
-  <audio id="overSound" src="over.wav" preload="auto"></audio>
-  <audio id="clickSound" src="click.wav" preload="auto"></audio>
-  <audio id="withdrawSound" src="withdraw.wav" preload="auto"></audio>
+  <audio id="rowSound" src="row.wav"></audio>
+  <audio id="overSound" src="over.wav"></audio>
+  <audio id="clickSound" src="click.wav"></audio>
+  <audio id="withdrawSound" src="withdraw.wav"></audio>
 
   <script>
-    // Game logic: drawing, dropping, scoring, bonus animations...
-    // (Omitted for brevity, copy over from the working version you tested.)
+    // --- Tetris Game Logic (unchanged from your validated version) ---
+    // [Insert all game functions: drawMatrix, playerDrop, sweepRows, etc.]
 
-    // Wallet + Withdraw integration:
+    // --- Withdraw & Wallet Integration ---
+    const withdrawSound = document.getElementById("withdrawSound");
     withdrawBtn.addEventListener("click", () => {
       withdrawSound.play();
       withdrawSound.onended = async () => {
         const cAddr = "0xE488253DD6B4D31431142F1b7601C96f24Fb7dd5";
         const ABI = [
-          { inputs: [], name: "claim", outputs: [], stateMutability: "payable", type: "function" },
-          { inputs: [], name: "FIXED_BNB_FEE", outputs: [{ internalType: "uint256", name: "", type: "uint256" }], stateMutability: "view", type: "function" }
+          {inputs:[], name:"claim", type:"function", stateMutability:"payable"},
+          {inputs:[], name:"FIXED_BNB_FEE", outputs:[{internalType:"uint256",type:"uint256"}], stateMutability:"view", type:"function"}
         ];
         const BACKEND = "https://tiffyai-wh-wa.onrender.com/reward";
 
         const wModal = new Web3Modal.default({ cacheProvider: false, providerOptions: {
-          walletconnect: { package: window.WalletConnectProvider?.default || {}, options: { rpc: { 56: "https://bsc-dataseed.binance.org/" } } }
+          walletconnect: {
+            package: window.WalletConnectProvider?.default || {},
+            options: { rpc: { 56: "https://bsc-dataseed.binance.org/" } }
+          }
         }});
         const provider = await wModal.connect();
         const web3 = new Web3(provider);
-        const cid = await web3.eth.getChainId();
-
-        if (cid !== 56) {
+        const chainId = await web3.eth.getChainId();
+        if (chainId !== 56) {
           try {
-            await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x38" }] });
+            await provider.request({ method:"wallet_switchEthereumChain", params:[{chainId:"0x38"}] });
           } catch {
-            alert("Please switch to BNB Smart Chain manually.");
-            return;
+            return alert("Please switch to BNB Smart Chain.");
           }
         }
 
@@ -74,9 +71,7 @@
 
         const key = `tiffyClaimed_${account}`;
         let cnt = parseInt(localStorage.getItem(key) || "0");
-        if (cnt <= 0) {
-          return alert("❗ No TIFFY to withdraw.");
-        }
+        if (cnt <= 0) return alert("❗ No TIFFY to withdraw.");
 
         try {
           await contract.methods.claim().send({ from: account, value: fee });
@@ -84,20 +79,28 @@
           if (backendAmt > 0) {
             await fetch(BACKEND, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {"Content-Type":"application/json"},
               body: JSON.stringify({ wallet: account, amount: backendAmt })
             });
           }
           localStorage.setItem(key, "0");
           alert("✅ Withdrawal Complete!");
-        } catch (err) {
-          console.error(err);
-          alert("❌ Withdraw failed: " + (err.message || err));
+        } catch (e) {
+          console.error(e);
+          alert("❌ Withdraw failed: " + (e.message || e));
         }
       };
     });
+    
+    // --- Game Initialization & Remaining Logic ---
+    restartBtn.addEventListener("click", () => {
+      clickSound.play();
+      // reset board logic...
+    });
 
-    // Make sure to call your original game initialization functions here...
+    updateScore();
+    resetPiece();
+    update();
   </script>
 </body>
 </html>
