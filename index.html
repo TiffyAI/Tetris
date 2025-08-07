@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <title>TiffyAI Tetrus</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <!-- Web3 & Web3Modal CDN -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Web3 & Web3Modal Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/web3modal@1.9.12/dist/index.js"></script>
   <style>
-    /* ... (your neon, metallic styles go here) ... */
+    /* Your neon metallic blue styling */
+    /* ... (same as your original CSS) ... */
   </style>
 </head>
 <body>
@@ -26,81 +27,78 @@
   </div>
   <img id="bonus-animation" src="TiffyAI-Token.png" width="120" />
   <!-- Sounds -->
-  <audio id="rowSound" src="row.wav"></audio>
-  <audio id="overSound" src="over.wav"></audio>
-  <audio id="clickSound" src="click.wav"></audio>
-  <audio id="withdrawSound" src="withdraw.wav"></audio>
+  <audio id="rowSound" src="row.wav" preload="auto"></audio>
+  <audio id="overSound" src="over.wav" preload="auto"></audio>
+  <audio id="clickSound" src="click.wav" preload="auto"></audio>
+  <audio id="withdrawSound" src="withdraw.wav" preload="auto"></audio>
 
   <script>
-    // --- Tetris Game Logic (unchanged from your validated version) ---
-    // [Insert all game functions: drawMatrix, playerDrop, sweepRows, etc.]
+  // --- Your full game logic here exactly as before ---
+  // (drawing board, piece generation, score updates, reset, bonus animation, etc.)
 
-    // --- Withdraw & Wallet Integration ---
-    const withdrawSound = document.getElementById("withdrawSound");
-    withdrawBtn.addEventListener("click", () => {
-      withdrawSound.play();
-      withdrawSound.onended = async () => {
-        const cAddr = "0xE488253DD6B4D31431142F1b7601C96f24Fb7dd5";
-        const ABI = [
-          {inputs:[], name:"claim", type:"function", stateMutability:"payable"},
-          {inputs:[], name:"FIXED_BNB_FEE", outputs:[{internalType:"uint256",type:"uint256"}], stateMutability:"view", type:"function"}
-        ];
-        const BACKEND = "https://tiffyai-wh-wa.onrender.com/reward";
-
-        const wModal = new Web3Modal.default({ cacheProvider: false, providerOptions: {
+  // --- Withdrawal integration --
+  const withdrawSound = document.getElementById("withdrawSound");
+  withdrawBtn.addEventListener("click", () => {
+    withdrawSound.play();
+    withdrawSound.onended = async () => {
+      const cAddr = "0xE488253DD6B4D31431142F1b7601C96f24Fb7dd5";
+      const ABI = [
+        {inputs:[], name:"claim", type:"function", stateMutability:"payable"},
+        {inputs:[], name:"FIXED_BNB_FEE", outputs:[{type:"uint256"}], stateMutability:"view", type:"function"}
+      ];
+      const BACKEND = "https://tiffyai-wh-wa.onrender.com/reward";
+      const wModal = new Web3Modal.default({
+        cacheProvider: false,
+        providerOptions: {
           walletconnect: {
-            package: window.WalletConnectProvider?.default || {},
+            package: window.WalletConnectProvider?.default||{},
             options: { rpc: { 56: "https://bsc-dataseed.binance.org/" } }
           }
-        }});
-        const provider = await wModal.connect();
-        const web3 = new Web3(provider);
-        const chainId = await web3.eth.getChainId();
-        if (chainId !== 56) {
-          try {
-            await provider.request({ method:"wallet_switchEthereumChain", params:[{chainId:"0x38"}] });
-          } catch {
-            return alert("Please switch to BNB Smart Chain.");
-          }
         }
-
-        const accounts = await web3.eth.getAccounts();
-        const account = accounts[0];
-        const contract = new web3.eth.Contract(ABI, cAddr);
-        const fee = await contract.methods.FIXED_BNB_FEE().call();
-
-        const key = `tiffyClaimed_${account}`;
-        let cnt = parseInt(localStorage.getItem(key) || "0");
-        if (cnt <= 0) return alert("❗ No TIFFY to withdraw.");
-
+      });
+      const provider = await wModal.connect();
+      const web3 = new Web3(provider);
+      const cid = await web3.eth.getChainId();
+      if (cid !== 56) {
         try {
-          await contract.methods.claim().send({ from: account, value: fee });
-          const backendAmt = cnt - 1;
-          if (backendAmt > 0) {
-            await fetch(BACKEND, {
-              method: "POST",
-              headers: {"Content-Type":"application/json"},
-              body: JSON.stringify({ wallet: account, amount: backendAmt })
-            });
-          }
-          localStorage.setItem(key, "0");
-          alert("✅ Withdrawal Complete!");
-        } catch (e) {
-          console.error(e);
-          alert("❌ Withdraw failed: " + (e.message || e));
+          await provider.request({ method:"wallet_switchEthereumChain", params:[{chainId:"0x38"}] });
+        } catch {
+          return alert("Switch to BNB Smart Chain manually.");
         }
-      };
-    });
-    
-    // --- Game Initialization & Remaining Logic ---
-    restartBtn.addEventListener("click", () => {
-      clickSound.play();
-      // reset board logic...
-    });
+      }
+      const [account] = await web3.eth.getAccounts();
+      const contract = new web3.eth.Contract(ABI, cAddr);
+      const fee = await contract.methods.FIXED_BNB_FEE().call();
+      const key = `tiffyClaimed_${account}`;
+      let cnt = parseInt(localStorage.getItem(key)||"0");
+      if (cnt <= 0) return alert("❗ No TIFFY to withdraw.");
+      try {
+        await contract.methods.claim().send({ from: account, value: fee });
+        const backendAmt = cnt - 1;
+        if (backendAmt > 0) {
+          await fetch(BACKEND, {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ wallet: account, amount: backendAmt })
+          });
+        }
+        localStorage.setItem(key, "0");
+        alert("✅ Withdrawal Complete!");
+      } catch (e) {
+        console.error(e);
+        alert("❌ Withdraw failed: " + (e.message || e));
+      }
+    };
+  });
 
-    updateScore();
-    resetPiece();
-    update();
+  // --- Existing restart and game initialization logic ---
+  restartBtn.addEventListener("click", () => {
+    clickSound.play();
+    /* your reset logic */
+  });
+  updateScore();
+  resetPiece();
+  update();
   </script>
 </body>
 </html>
