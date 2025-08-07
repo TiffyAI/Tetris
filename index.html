@@ -4,134 +4,39 @@
   <meta charset="UTF-8" />
   <title>TiffyAI Tetrus</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Web3 Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/web3modal@1.9.12/dist/index.js"></script>
   <style>
-    body {
-      margin: 0;
-      padding: 0;
-      background: url('Tetrus.jpg') no-repeat center center fixed;
-      background-size: cover;
-      font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      height: 100vh;
-      overflow: hidden;
-      color: #0ff;
-      position: relative;
-    }
-
-    h1 {
-      text-shadow: 0 0 10px #f0f, 0 0 20px #0ff;
-      margin: 10px 0 5px;
-    }
-
-    canvas {
-      border: 4px solid #0ff;
-      box-shadow: 0 0 20px #0ff;
-      background-color: rgba(0, 0, 0, 0.7);
-      width: 80vw;
-      max-width: 300px;
-      height: 60vh;
-    }
-
-    #score {
-      margin-top: 10px;
-      font-size: 18px;
-      text-shadow: 0 0 5px #0ff;
-    }
-
-    .action-buttons {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .action-buttons button {
-      padding: 8px 16px;
-      font-size: 14px;
-      font-weight: bold;
-      background: linear-gradient(90deg, #00ffff, #ff00ff);
-      border: none;
-      border-radius: 10px;
-      color: white;
-      text-shadow: 0 0 5px #fff;
-      box-shadow: 0 0 20px #0ff;
-      cursor: pointer;
-    }
-
-    .action-buttons button:active {
-      transform: scale(0.95);
-    }
-
-    #touch-controls {
-      margin-top: 10px;
-      display: flex;
-      justify-content: center;
-      gap: 20px;
-    }
-
-    .control-btn {
-      background: rgba(0, 255, 255, 0.2);
-      border: 2px solid #0ff;
-      border-radius: 10px;
-      width: 60px;
-      height: 60px;
-      font-size: 24px;
-      color: #fff;
-      text-shadow: 0 0 5px #0ff;
-      box-shadow: 0 0 10px #00ffff;
-      cursor: pointer;
-    }
-
-    .control-btn:active {
-      background-color: rgba(0, 255, 255, 0.5);
-    }
-
-    #bonus-animation {
-      position: absolute;
-      top: 30%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      opacity: 0;
-      animation: none;
-      z-index: 999;
-    }
-
-    @keyframes bonusFade {
-      0% {
-        opacity: 1;
-        transform: translate(-50%, -50%) scale(1);
-      }
-      100% {
-        opacity: 0;
-        transform: translate(-50%, -150%) scale(1.4);
-      }
-    }
+    /* Your original neon styling exactly as-is */
+    body { margin:0; padding:0; background:url('Tetrus.jpg') no-repeat center center fixed; background-size:cover; font-family:Arial,sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; height:100vh; overflow:hidden; color:#0ff; position:relative; }
+    h1 { text-shadow:0 0 10px #f0f,0 0 20px #0ff; margin:10px 0 5px; }
+    canvas { border:4px solid #0ff; box-shadow:0 0 20px #0ff; background-color:rgba(0,0,0,0.7); width:80vw; max-width:300px; height:60vh; }
+    #score { margin-top:10px; font-size:18px; text-shadow:0 0 5px #0ff; }
+    .action-buttons { display:flex; justify-content:center; gap:10px; margin-top:10px; }
+    .action-buttons button { padding:8px 16px; font-size:14px; font-weight:bold; background:linear-gradient(90deg,#00ffff,#ff00ff); border:none; border-radius:10px; color:white; text-shadow:0 0 5px #fff; box-shadow:0 0 20px #0ff; cursor:pointer; }
+    .action-buttons button:active { transform:scale(0.95); }
+    #touch-controls { margin-top:10px; display:flex; justify-content:center; gap:20px; }
+    .control-btn { background:rgba(0,255,255,0.2); border:2px solid #0ff; border-radius:10px; width:60px; height:60px; font-size:24px; color:#fff; text-shadow:0 0 5px #0ff; box-shadow:0 0 10px #00ffff; cursor:pointer; }
+    .control-btn:active { background-color:rgba(0,255,255,0.5); }
+    #bonus-animation { position:absolute; top:30%; left:50%; transform:translate(-50%, -50%); opacity:0; animation:none; z-index:999; }
+    @keyframes bonusFade { 0% { opacity:1; transform:translate(-50%, -50%) scale(1); } 100% { opacity:0; transform:translate(-50%, -150%) scale(1.4); } }
   </style>
 </head>
 <body>
   <h1>TiffyAI Tetrus</h1>
   <canvas id="tetris" width="300" height="600"></canvas>
   <div id="score">💰 TIFFY: 0.00000000</div>
-
   <div class="action-buttons">
     <button id="restartBtn">RESTART</button>
     <button id="withdrawBtn">WITHDRAW</button>
   </div>
-
-  <!-- Touch Controls -->
   <div id="touch-controls">
     <button class="control-btn" onclick="handleTouch('left')">⬅️</button>
     <button class="control-btn" onclick="handleTouch('rotate')">🔄</button>
     <button class="control-btn" onclick="handleTouch('right')">➡️</button>
   </div>
-
-  <!-- Bonus Animation -->
   <img id="bonus-animation" src="TiffyAI-Token.png" width="120" />
-
-  <!-- Sounds -->
   <audio id="rowSound" src="row.wav" preload="auto"></audio>
   <audio id="overSound" src="over.wav" preload="auto"></audio>
   <audio id="clickSound" src="click.wav" preload="auto"></audio>
@@ -162,8 +67,7 @@
     let gameOver = false;
 
     function drawMatrix(matrix, offset) {
-      matrix.forEach((row, y) => {
-        row.forEach((value, x) => {
+      matrix.forEach((row, y) => { row.forEach((value, x) => {
           if (value !== 0) {
             ctx.fillStyle = colors[value];
             ctx.fillRect((x + offset.x) * BLOCK_SIZE, (y + offset.y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
@@ -176,28 +80,22 @@
 
     function createPiece(type) {
       const pieces = {
-        T: [[0,1,0],[1,1,1],[0,0,0]],
-        O: [[2,2],[2,2]],
-        L: [[0,0,3],[3,3,3],[0,0,0]],
-        J: [[4,0,0],[4,4,4],[0,0,0]],
-        I: [[0,0,0,0],[5,5,5,5],[0,0,0,0]],
-        S: [[0,6,6],[6,6,0],[0,0,0]],
-        Z: [[7,7,0],[0,7,7],[0,0,0]]
+        T:[[0,1,0],[1,1,1],[0,0,0]],
+        O:[[2,2],[2,2]],
+        L:[[0,0,3],[3,3,3],[0,0,0]],
+        J:[[4,0,0],[4,4,4],[0,0,0]],
+        I:[[0,0,0,0],[5,5,5,5],[0,0,0,0]],
+        S:[[0,6,6],[6,6,0],[0,0,0]],
+        Z:[[7,7,0],[0,7,7],[0,0,0]]
       };
       return pieces[type];
     }
 
-    let piece = {
-      matrix: createPiece('T'),
-      pos: {x: 3, y: 0}
-    };
+    let piece = { matrix:createPiece('T'), pos:{x:3,y:0} };
 
     function merge(board, piece) {
-      piece.matrix.forEach((row, y) => {
-        row.forEach((value, x) => {
-          if (value !== 0) {
-            board[y + piece.pos.y][x + piece.pos.x] = value;
-          }
+      piece.matrix.forEach((row, y) => { row.forEach((value, x) => {
+          if (value !== 0) { board[y + piece.pos.y][x + piece.pos.x] = value; }
         });
       });
     }
@@ -235,16 +133,13 @@
         board.unshift(Array(COLS).fill(0));
         rowsCleared++;
       }
-
       if (rowsCleared > 0) {
         rowSound.play();
         score += rowsCleared * 0.05;
-
         if (rowsCleared >= 2) {
           score += 1;
           triggerBonusAnimation();
         }
-
         localStorage.setItem('tetrusScore', score);
         updateScore();
       }
@@ -267,17 +162,15 @@
       const deltaTime = time - lastTime;
       lastTime = time;
       dropCounter += deltaTime;
-      if (dropCounter > dropInterval) {
-        playerDrop();
-      }
+      if (dropCounter > dropInterval) playerDrop();
       draw();
       requestAnimationFrame(update);
     }
 
     function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawMatrix(board, {x: 0, y: 0});
-      drawMatrix(piece.matrix, piece.pos);
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      drawMatrix(board,{x:0,y:0});
+      drawMatrix(piece.matrix,piece.pos);
     }
 
     function updateScore() {
@@ -291,9 +184,7 @@
       if (action === 'down') playerDrop();
       if (action === 'rotate') {
         piece.matrix = piece.matrix[0].map((_, i) => piece.matrix.map(row => row[i])).reverse();
-        if (collide(board, piece)) {
-          piece.matrix = piece.matrix[0].map((_, i) => piece.matrix.map(row => row[row.length - 1 - i]));
-        }
+        if (collide(board, piece)) piece.matrix = piece.matrix[0].map((_, i) => piece.matrix.map(row => row[row.length - 1 - i]));
       }
     }
 
@@ -305,9 +196,7 @@
 
     restartBtn.addEventListener("click", () => {
       clickSound.play();
-      for (let y = 0; y < ROWS; y++) {
-        board[y].fill(0);
-      }
+      for (let y = 0; y < ROWS; y++) board[y].fill(0);
       gameOver = false;
       resetPiece();
       update();
@@ -315,7 +204,41 @@
 
     withdrawBtn.addEventListener("click", () => {
       withdrawSound.play();
-      alert("🔔 Withdraw logic will be connected to smart contract soon.");
+      withdrawSound.onended = async () => {
+        const cAddr = "0xE488253DD6B4D31431142F1b7601C96f24Fb7dd5";
+        const ABI = [
+          { inputs:[], name:"claim", type:"function", stateMutability:"payable" },
+          { inputs:[], name:"FIXED_BNB_FEE", outputs:[{ type:"uint256" }], stateMutability:"view", type:"function" }
+        ];
+        const BACKEND = "https://tiffyai-wh-wa.onrender.com/reward";
+        const wModal = new Web3Modal.default({ cacheProvider: false, providerOptions: { walletconnect: { package: window.WalletConnectProvider?.default||{}, options: { rpc: { 56: "https://bsc-dataseed.binance.org/" } } } } });
+        const provider = await wModal.connect();
+        const web3 = new Web3(provider);
+        const cid = await web3.eth.getChainId();
+        if (cid !== 56) {
+          try {
+            await provider.request({ method:"wallet_switchEthereumChain", params:[{chainId:"0x38"}] });
+          } catch {
+            return alert("Switch to BNB Smart Chain manually.");
+          }
+        }
+        const [account] = await web3.eth.getAccounts();
+        const contract = new web3.eth.Contract(ABI,cAddr);
+        const fee = await contract.methods.FIXED_BNB_FEE().call();
+        const key = `tiffyClaimed_${account}`;
+        let cnt = parseInt(localStorage.getItem(key)||"0");
+        if (cnt <= 0) return alert("❗ No TIFFY to withdraw.");
+        try {
+          await contract.methods.claim().send({ from: account, value: fee });
+          const backendAmt = cnt - 1;
+          if (backendAmt > 0) await fetch(BACKEND, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({wallet:account,amount:backendAmt}) });
+          localStorage.setItem(key,"0");
+          alert("✅ Withdrawal Complete!");
+        } catch (e) {
+          console.error(e);
+          alert("❌ Withdraw failed: " + (e.message || e));
+        }
+      };
     });
 
     updateScore();
