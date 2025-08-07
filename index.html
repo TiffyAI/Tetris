@@ -66,13 +66,10 @@
     }
 
     #touch-controls {
-      position: absolute;
-      bottom: 10px;
-      width: 100%;
+      margin-top: 10px;
       display: flex;
-      justify-content: space-between;
-      padding: 0 20px;
-      box-sizing: border-box;
+      justify-content: center;
+      gap: 20px;
     }
 
     .control-btn {
@@ -85,7 +82,6 @@
       color: #fff;
       text-shadow: 0 0 5px #0ff;
       box-shadow: 0 0 10px #00ffff;
-      margin: 0 5px;
       cursor: pointer;
     }
 
@@ -125,24 +121,29 @@
     <button id="withdrawBtn">WITHDRAW</button>
   </div>
 
-  <!-- Bonus Animation -->
-  <img id="bonus-animation" src="TiffyAI-Token.png" width="120" />
-
-  <!-- Touch Controls -->
+  <!-- Touch Controls (now under buttons) -->
   <div id="touch-controls">
     <button class="control-btn" onclick="handleTouch('left')">⬅️</button>
     <button class="control-btn" onclick="handleTouch('rotate')">🔄</button>
     <button class="control-btn" onclick="handleTouch('right')">➡️</button>
   </div>
 
+  <!-- Bonus Animation -->
+  <img id="bonus-animation" src="TiffyAI-Token.png" width="120" />
+
+  <!-- Sounds -->
   <audio id="rowSound" src="row.wav" preload="auto"></audio>
   <audio id="overSound" src="over.wav" preload="auto"></audio>
+  <audio id="clickSound" src="click.wav" preload="auto"></audio>
+  <audio id="withdrawSound" src="withdraw.wav" preload="auto"></audio>
 
   <script>
     const canvas = document.getElementById("tetris");
     const ctx = canvas.getContext("2d");
     const rowSound = document.getElementById("rowSound");
     const overSound = document.getElementById("overSound");
+    const clickSound = document.getElementById("clickSound");
+    const withdrawSound = document.getElementById("withdrawSound");
     const restartBtn = document.getElementById("restartBtn");
     const withdrawBtn = document.getElementById("withdrawBtn");
     const scoreDisplay = document.getElementById("score");
@@ -296,11 +297,12 @@
     function triggerBonusAnimation() {
       const bonusImg = document.getElementById("bonus-animation");
       bonusImg.style.animation = "none";
-      void bonusImg.offsetWidth; // Restart animation
+      void bonusImg.offsetWidth;
       bonusImg.style.animation = "bonusFade 2s ease-out forwards";
     }
 
     restartBtn.addEventListener("click", () => {
+      clickSound.play();
       for (let y = 0; y < ROWS; y++) {
         board[y].fill(0);
       }
@@ -310,6 +312,7 @@
     });
 
     withdrawBtn.addEventListener("click", () => {
+      withdrawSound.play();
       alert("🔔 Withdraw logic will be connected to smart contract soon.");
     });
 
