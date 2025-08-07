@@ -18,6 +18,7 @@
       height: 100vh;
       overflow: hidden;
       color: #0ff;
+      position: relative;
     }
 
     h1 {
@@ -35,42 +36,43 @@
     }
 
     #score {
-      margin-top: 6px;
+      margin-top: 10px;
       font-size: 18px;
       text-shadow: 0 0 5px #0ff;
     }
 
-    .btn-row {
+    .action-buttons {
       display: flex;
+      justify-content: center;
       gap: 10px;
-      margin: 10px;
+      margin-top: 10px;
     }
 
-    .tiffy-btn {
-      padding: 10px 15px;
-      font-size: 13px;
+    .action-buttons button {
+      padding: 8px 16px;
+      font-size: 14px;
       font-weight: bold;
-      background: linear-gradient(90deg, #00ffff, #9055ff);
+      background: linear-gradient(90deg, #00ffff, #ff00ff);
       border: none;
       border-radius: 10px;
       color: white;
       text-shadow: 0 0 5px #fff;
-      box-shadow: 0 0 15px #0ff;
+      box-shadow: 0 0 20px #0ff;
       cursor: pointer;
     }
 
-    .tiffy-btn:active {
+    .action-buttons button:active {
       transform: scale(0.95);
-      box-shadow: 0 0 25px #f0f;
     }
 
     #touch-controls {
       position: absolute;
-      bottom: 20px;
+      bottom: 10px;
       width: 100%;
       display: flex;
       justify-content: space-between;
       padding: 0 20px;
+      box-sizing: border-box;
     }
 
     .control-btn {
@@ -91,27 +93,45 @@
       background-color: rgba(0, 255, 255, 0.5);
     }
 
-    .center-btn {
+    #bonus-animation {
       position: absolute;
+      top: 30%;
       left: 50%;
-      transform: translateX(-50%);
+      transform: translate(-50%, -50%);
+      opacity: 0;
+      animation: bonusFade 2s ease-out forwards;
+      z-index: 999;
+    }
+
+    @keyframes bonusFade {
+      0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -150%) scale(1.4);
+      }
     }
   </style>
 </head>
 <body>
   <h1>TiffyAI Tetrus</h1>
   <canvas id="tetris" width="300" height="600"></canvas>
-  <div id="score">💰 TIFFY: 0.00</div>
+  <div id="score">💰 TIFFY: 0.00000000</div>
 
-  <div class="btn-row">
-    <button id="restartBtn" class="tiffy-btn">RESTART</button>
-    <button id="withdrawBtn" class="tiffy-btn">WITHDRAW</button>
+  <div class="action-buttons">
+    <button id="restartBtn">RESTART</button>
+    <button id="withdrawBtn">WITHDRAW</button>
   </div>
 
-  <!-- Mobile Controls -->
+  <!-- Bonus Animation -->
+  <img id="bonus-animation" src="TiffyAI-Token.png" width="120" />
+
+  <!-- Touch Controls -->
   <div id="touch-controls">
     <button class="control-btn" onclick="handleTouch('left')">⬅️</button>
-    <button class="control-btn center-btn" onclick="handleTouch('rotate')">🔄</button>
+    <button class="control-btn" onclick="handleTouch('rotate')">🔄</button>
     <button class="control-btn" onclick="handleTouch('right')">➡️</button>
   </div>
 
@@ -201,14 +221,26 @@
     }
 
     function sweepRows() {
+      let rowsCleared = 0;
       outer: for (let y = board.length - 1; y >= 0; y--) {
         for (let x = 0; x < board[y].length; x++) {
           if (board[y][x] === 0) continue outer;
         }
         board.splice(y, 1);
         board.unshift(Array(COLS).fill(0));
+        rowsCleared++;
+      }
+
+      if (rowsCleared > 0) {
         rowSound.play();
-        score += 0.05;
+        let reward = rowsCleared * 0.05;
+        score += reward;
+
+        if (rowsCleared >= 2) {
+          score += 1;
+          triggerBonusAnimation();
+        }
+
         localStorage.setItem('tetrusScore', score);
         updateScore();
       }
@@ -221,7 +253,7 @@
       piece.pos.x = Math.floor(COLS / 2) - Math.floor(piece.matrix[0].length / 2);
       if (collide(board, piece)) {
         overSound.play();
-        alert("Game Over! 💰 TIFFY: " + score.toFixed(2));
+        alert("Game Over! 💰 TIFFY: " + score.toFixed(8));
         gameOver = true;
       }
     }
@@ -245,7 +277,7 @@
     }
 
     function updateScore() {
-      scoreDisplay.textContent = "💰 TIFFY: " + score.toFixed(2);
+      scoreDisplay.textContent = "💰 TIFFY: " + score.toFixed(8);
     }
 
     function handleTouch(action) {
@@ -261,13 +293,12 @@
       }
     }
 
-    document.addEventListener("keydown", e => {
-      if (gameOver) return;
-      if (e.key === "ArrowLeft") piece.pos.x--;
-      else if (e.key === "ArrowRight") piece.pos.x++;
-      else if (e.key === "ArrowDown") playerDrop();
-      else if (e.key === "ArrowUp") handleTouch("rotate");
-    });
+    function triggerBonusAnimation() {
+      const bonusImg = document.getElementById("bonus-animation");
+      bonusImg.style.animation = "none";
+      void bonusImg.offsetWidth; // Restart animation
+      bonusImg.style.animation = "bonusFade 2s ease-out forwards";
+    }
 
     restartBtn.addEventListener("click", () => {
       for (let y = 0; y < ROWS; y++) {
@@ -279,7 +310,7 @@
     });
 
     withdrawBtn.addEventListener("click", () => {
-      alert("🔄 Withdraw logic to be implemented with smart contract + wallet interaction.");
+      alert("🔔 Withdraw logic will be connected to smart contract soon.");
     });
 
     updateScore();
