@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>TiffyAI Tetris — Live</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+  <script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
+  <style>
+    body{margin:0;padding:0;background:url('Tetrus.jpg') no-repeat center center fixed;background-size:cover;font-family:Arial,sans-serif;color:#0ff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;height:100vh;overflow:hidden}
+    h1{margin:10px 0;text-shadow:0 0 10px #f0f,0 0 20px #0ff}
+    canvas{border:4px solid #0ff;box-shadow:0 0 20px #0ff;background:rgba(0,0,0,0.7);width:80vw;max-width:300px;height:60vh}
+    .action-buttons{display:flex;gap:10px;margin-top:10px}
+    .action-buttons button{padding:8px 16px;border-radius:10px;border:none;background:linear-gradient(90deg,#00ffff,#ff00ff);color:#fff;font-weight:700;cursor:pointer}
+    #walletInfo{margin-top:10px;font-size:14px;text-align:center}
+    /* modal */
+    #feeModal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.97);border:2px solid #0ff;padding:16px;border-radius:10px;color:#0ff;display:none;z-index:2000;width:92%;max-width:420px}
+    #feeModal h3{text-align:center;margin:0 0 8px}
+    #feeModal .row{display:flex;justify-content:space-between;margin:8px 0}
+    #feeModal .actions{display:flex;gap:8px;margin-top:12px}
+    .btnGrey{flex:1;padding:10px;border-radius:8px;background:#111;color:#fff;border:1px solid #333}
+    .btnAccent{flex:1;padding:10px;border-radius:8px;background:linear-gradient(90deg,#00ffff,#4b6cb7);color:#000;font-weight:700}
+  </style>
+</head>
+<body>
+  <h1>TiffyAI Tetris</h1>
+  <canvas id="tetris" width="300" height="600"></canvas>
+  <div id="score">💰 TIFFY: 0.00000000</div>
+
+  <div class="action-buttons">
+    <button id="restartBtn">RESTART</button>
+    <button id="connectBtn">CONNECT & WITHDRAW</button>
+    <button id="withdrawBtn" style="display:none">WITHDRAW</button>
+  </div>
+
+  <div id="walletInfo" style="display:none">
+    Connected: <span id="walletAddr">-</span><br/>
+    Claimed TIFFY: <span id="walletTiffy">0</span> — $<span id="walletUSD">0.00</span>
+  </div>
+
+  <!-- fee modal -->
+  <div id="feeModal" role="dialog">
+    <h3>Confirm Withdrawal</h3>
+    <div class="row"><div>Contract fee</div><div id="c_contractFee">- BNB</div></div>
+    <div class="row"><div>Estimated network fee</div><div id="c_gasFee">- BNB</div></div>
+    <div class="row"><div><strong>Total (est.)</strong></div><div id="c_total">- BNB</div></div>
+    <div class="row"><div>Approx USD</div><div id="c_totalUSD">-</div></div>
+    <hr style="border:none;border-top:1px dashed #006"/>
+    <div class="row"><div>You will receive</div><div id="c_tiffyAmount">1 TIFFY</div></div>
+    <div class="row"><div>TIFFY in BNB</div><div id="c_tiffyBNB">-</div></div>
+    <div class="row"><div>TIFFY in USD</div><div id="c_tiffyUSD">-</div></div>
+    <div class="actions"><button id="c_cancel" class="btnGrey">Cancel</button><button id="c_confirm" class="btnAccent">Proceed</button></div>
+  </div>
+
+  <script>
+  (function(){
+    // --- Game (kept same) ---
+    const canvas = document.getElementById("tetris");
+    const ctx = canvas.getContext("2d");
+    const rowSound = new Audio("row.wav");
+    const overSound = new Audio("over.wav");
+    const clickSound = new Audio("click.wav");
+    const withdrawSound = new Audio("withdraw.wav");
+    const restartBtn = document.getElementById("restartBtn");
+    const connectBtn = document.getElementById("connectBtn");
+    const withdrawBtn = document.getElementById("withdrawBtn");
+    const scoreDisplay = document.getElementById("score");
+    const bonusImg = document.getElementById("tiffy-token") || document.getElementById("tetris");
+
+    const walletInfo = document.getElementById("walletInfo");
+    const walletAddr = document.getElementById("walletAddr");
+    const walletTiffy = document.getElementById("walletTiffy");
+    const walletUSD = document.getElementById("walletUSD");
+
+    const ROWS=20,COLS=10,BLOCK_SIZE=30;
+    const board = Array.from({length:ROWS},()=>Array(COLS).fill(0));
+    const colors=['#000','#0ff','#f0f','#0f0','#ff0','#f00','#00f','#0f9'];
+
+    let score = parseFloat(localStorage.getItem('tetrusScore'))||0;
+    let dropInterval=500,dropCounter=0,lastTime=0,gameOver=false;
+    let piece={matrix:createPiece('T'),pos:{x:3,y:0}};
+
+    // blockchain config
+    const CONTRACT = "0xE488253DD6B4D31431142F1b7601C96f24Fb7dd5";
+    const ABI = [{inputs:[],name:"claim",outputs:[],stateMutability:"payable",type:"function"},{inputs:[],name:"FIXED_BNB_FEE",outputs:[{type:"uint256"}],stateMutability:"view",type:"function"}];
+    const PRICE_JSON = "https://tiffyai.github.io/TIFFY-Market-Value/price.json";
+    const BACKEND = "https://tiffyai-wh-wa.onrender.com/reward";
+
+    let web3,provider,account=null,contract,fee;
+    let tiffyPriceUSD=null,bnbPriceUSD=null;
+
+    // modal elements
+    const feeModal = document.getElementById('feeModal');
+    const c_contractFee = document.getElementById('c_contractFee');
+    const c_gasFee = document.getElementById('c_gasFee');
+    const c_total = document.getElementById('c_total');
+    const c_totalUSD = document.getElementById('c_totalUSD');
+    const c_tiffyAmount = document.getElementById('c_tiffyAmount');
+    const c_tiffyBNB = document.getElementById('c_tiffyBNB');
+    const c_tiffyUSD = document.getElementById('c_tiffyUSD');
+    const c_cancel = document.getElementById('c_cancel');
+    const c_confirm = document.getElementById('c_confirm');
+
+    // --- game functions (unchanged) ---
+    function drawMatrix(matrix,offset){ matrix.forEach((row,y)=>row.forEach((value,x)=>{ if(value!==0){ ctx.fillStyle=colors[value]; ctx.fillRect((x+offset.x)*BLOCK_SIZE,(y+offset.y)*BLOCK_SIZE,BLOCK_SIZE,BLOCK_SIZE); ctx.strokeStyle='#222'; ctx.strokeRect((x+offset.x)*BLOCK_SIZE,(y+offset.y)*BLOCK_SIZE,BLOCK_SIZE,BLOCK_SIZE); } })); }
+    function createPiece(type){ const pieces={T:[[0,1,0],[1,1,1],[0,0,0]],O:[[2,2],[2,2]],L:[[0,0,3],[3,3,3],[0,0,0]],J:[[4,0,0],[4,4,4],[0,0,0]],I:[[0,0,0,0],[5,5,5,5],[0,0,0,0]],S:[[0,6,6],[6,6,0],[0,0,0]],Z:[[7,7,0],[0,7,7],[0,0,0]]}; return pieces[type]; }
+    function merge(board,piece){ piece.matrix.forEach((row,y)=>row.forEach((value,x)=>{ if(value!==0) board[y+piece.pos.y][x+piece.pos.x]=value; })); }
+    function collide(board,piece){ for(let y=0;y<piece.matrix.length;++y) for(let x=0;x<piece.matrix[y].length;++x) if(piece.matrix[y][x]!==0 && (board[y+piece.pos.y] && board[y+piece.pos.y][x+piece.pos.x])!==0) return true; return false; }
+    function playerDrop(){ piece.pos.y++; if(collide(board,piece)){ piece.pos.y--; merge(board,piece); resetPiece(); sweepRows(); } dropCounter=0; }
+    function sweepRows(){ let rowsCleared=0; outer: for(let y=board.length-1;y>=0;y--){ for(let x=0;x<board[y].length;x++){ if(board[y][x]===0) continue outer; } board.splice(y,1); board.unshift(Array(COLS).fill(0)); rowsCleared++; } if(rowsCleared>0){ rowSound.play(); score += rowsCleared*0.05; if(rowsCleared>=2){ score+=1; triggerBonusAnimation(); } localStorage.setItem('tetrusScore',score); updateScore(); } }
+    function resetPiece(){ const pieces='TJLOSZI'; piece.matrix=createPiece(pieces[Math.floor(Math.random()*pieces.length)]); piece.pos.y=0; piece.pos.x=Math.floor(COLS/2)-Math.floor(piece.matrix[0].length/2); if(collide(board,piece)){ overSound.play(); alert("Game Over! 💰 TIFFY: "+score.toFixed(8)); gameOver=true; } }
+    function update(time=0){ if(gameOver) return; const deltaTime=time-lastTime; lastTime=time; dropCounter+=deltaTime; if(dropCounter>dropInterval) playerDrop(); draw(); requestAnimationFrame(update); }
+    function draw(){ ctx.clearRect(0,0,canvas.width,canvas.height); drawMatrix(board,{x:0,y:0}); drawMatrix(piece.matrix,piece.pos); }
+    function updateScore(){ scoreDisplay.textContent="💰 TIFFY: "+score.toFixed(8); updateWalletDisplay(); }
+    function handleTouch(action){ if(gameOver) return; if(action==='left') piece.pos.x--; if(action==='right') piece.pos.x++; if(action==='down') playerDrop(); if(action==='rotate'){ piece.matrix = piece.matrix[0].map((_,i)=>piece.matrix.map(row=>row[i])).reverse(); if(collide(board,piece)) piece.matrix = piece.matrix[0].map((_,i)=>piece.matrix.map(row=>row[row.length-1-i])); } }
+    function triggerBonusAnimation(){ bonusImg.style.animation="none"; void bonusImg.offsetWidth; bonusImg.style.animation="bonusFade 2s ease-out forwards"; }
+
+    // --- wallet & price helpers ---
+    async function fetchPrices(){
+      try { const r = await fetch(PRICE_JSON); const j = await r.json(); tiffyPriceUSD = parseFloat(j.tiffyToUSD || j.price || j.price_usd || 0); } catch(e){ console.warn("price.json failed",e); tiffyPriceUSD=null; }
+      try { const r2 = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=binancecoin&vs_currencies=usd'); const j2=await r2.json(); bnbPriceUSD = parseFloat(j2.binancecoin.usd||0); } catch(e){ console.warn("coingecko failed",e); bnbPriceUSD=null; }
+    }
+
+    // Web3Modal v1 setup (keeps existing compatibility)
+    const web3Modal = new Web3Modal.default({ cacheProvider:false, providerOptions:{ walletconnect:{ package: window.WalletConnectProvider?.default || null, options:{ rpc:{56:"https://bsc-dataseed.binance.org/"} } } } });
+
+    async function connectWallet(){
+      try {
+        provider = await web3Modal.connect();
+        web3 = new Web3(provider);
+        const chainId = await web3.eth.getChainId();
+        if(chainId !== 56){
+          try { await provider.request({ method:"wallet_switchEthereumChain", params:[{chainId:"0x38"}] }); }
+          catch(e){ alert("❗ Please switch to BNB Smart Chain"); return; }
+        }
+        const accounts = await web3.eth.getAccounts();
+        account = accounts[0];
+        contract = new web3.eth.Contract(ABI, CONTRACT);
+        try { fee = await contract.methods.FIXED_BNB_FEE().call(); } catch(e){ console.warn("FIXED_BNB_FEE read failed",e); }
+        walletAddr.textContent = account;
+        walletInfo.style.display = "block";
+        withdrawBtn.style.display = "inline-block";
+        connectBtn.style.display = "none";
+        await fetchPrices();
+        updateWalletDisplay();
+      } catch(e){ alert("Wallet connect failed: "+(e.message||e)); }
+    }
+
+    async function showPreConfirm(){
+      if(!contract || !account) return alert("Connect wallet first");
+      try { fee = await contract.methods.FIXED_BNB_FEE().call(); } catch(e){ console.warn("fee read error",e); }
+      let estGas = 140000;
+      try { estGas = await contract.methods.claim().estimateGas({ from: account, value: fee }); } catch(e){ console.warn("estimateGas failed",e); }
+      let gasPrice = await web3.eth.getGasPrice().catch(()=> "20000000000");
+      const gasFeeWei = BigInt(estGas) * BigInt(gasPrice);
+      const gasBNB = parseFloat(web3.utils.fromWei(gasFeeWei.toString(),"ether"));
+      const feeBNB = parseFloat(web3.utils.fromWei(fee.toString(),"ether"));
+      const totalBNB = feeBNB + gasBNB;
+      if(tiffyPriceUSD === null || bnbPriceUSD === null) await fetchPrices();
+      const approxUSD = bnbPriceUSD ? (totalBNB * bnbPriceUSD).toFixed(2) : "-";
+      // TIFFY receive: contract gives 1 TIFFY
+      const tiffyReceive = 1;
+      const tiffyUSD = tiffyPriceUSD ? (tiffyReceive * tiffyPriceUSD).toFixed(2) : "-";
+      const tiffyBNB = (tiffyPriceUSD && bnbPriceUSD) ? (tiffyPriceUSD / bnbPriceUSD).toFixed(6) : "-";
+
+      c_contractFee.textContent = feeBNB.toFixed(6)+" BNB";
+      c_gasFee.textContent = gasBNB.toFixed(6)+" BNB";
+      c_total.textContent = totalBNB.toFixed(6)+" BNB";
+      c_totalUSD.textContent = "$"+approxUSD;
+      c_tiffyAmount.textContent = `${tiffyReceive} TIFFY`;
+      c_tiffyBNB.textContent = tiffyBNB!=="-" ? tiffyBNB+" BNB" : "-";
+      c_tiffyUSD.textContent = tiffyUSD!=="-" ? "$"+tiffyUSD : "-";
+
+      feeModal.style.display = "block";
+      return new Promise(resolve=>{
+        c_cancel.onclick = ()=>{ feeModal.style.display='none'; resolve(false); };
+        c_confirm.onclick = ()=>{ feeModal.style.display='none'; resolve({estGas, gasPrice, fee}); };
+      });
+    }
+
+    async function withdrawFlow(){
+      if(!account) { await connectWallet(); if(!account) return; }
+      const key = `tiffyClaimed_${account}`;
+      let cnt = parseInt(localStorage.getItem(key)||"0");
+      if(cnt <= 0) return alert("No TIFFY to withdraw");
+      const choice = await showPreConfirm();
+      if(!choice) return;
+      const { estGas, gasPrice, fee } = choice;
+      withdrawBtn.disabled = true;
+      withdrawBtn.textContent = "Processing...";
+      withdrawSound.play();
+      try {
+        const receipt = await contract.methods.claim().send({
+          from: account,
+          value: fee,
+          gas: Math.floor(estGas * 1.2),
+          gasPrice: gasPrice
+        });
+        const backendAmt = cnt - 1;
+        if(backendAmt > 0){
+          fetch(BACKEND, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ wallet: account, amount: backendAmt }) }).catch(e=>console.warn("Backend log failed",e));
+        }
+        localStorage.setItem(key,"0");
+        alert("✅ Withdrawal Complete!");
+        updateWalletDisplay();
+      } catch(e){
+        console.error("withdraw failed",e);
+        alert("❌ Withdraw failed: "+(e.message||e));
+      } finally {
+        withdrawBtn.disabled = false;
+        withdrawBtn.textContent = "WITHDRAW";
+      }
+    }
+
+    function updateWalletDisplay(){
+      if(!account) return;
+      const key = `tiffyClaimed_${account}`;
+      const cnt = parseInt(localStorage.getItem(key) || "0");
+      walletTiffy.textContent = cnt;
+      const price = tiffyPriceUSD || 0;
+      walletUSD.textContent = (cnt * price).toFixed(2);
+      withdrawBtn.style.display = cnt > 0 ? "inline-block" : "none";
+    }
+
+    async function fetchLivePrice() { await fetchPrices(); updateWalletDisplay(); }
+
+    // UI bindings
+    connectBtn.onclick = connectWallet;
+    withdrawBtn.onclick = withdrawFlow;
+    restartBtn.addEventListener("click", ()=>{ clickSound.play(); for(let y=0;y<ROWS;y++) board[y].fill(0); gameOver=false; resetPiece(); update(); });
+
+    window.handleTouch = handleTouch;
+
+    // init
+    updateScore();
+    resetPiece();
+    update();
+    fetchLivePrice();
+    setInterval(fetchLivePrice,60000);
+
+  })();
+  </script>
+</body>
+</html>
