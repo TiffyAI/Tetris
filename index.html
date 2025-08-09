@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>TiffyAI Tetris — V2</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<!-- Web3 libraries (Web3 for direct RPC calls; Web3Modal v2 + Ethereum client loaded as modules below) -->
+<script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+
+<style>
+  /* --- layout & visuals (kept your styling + glow enhancements) --- */
+  :root {
+    --accent: #00ffe7;
+    --accent-2: #ff00ff;
+  }
+  html,body{height:100%; margin:0; font-family:Arial, sans-serif; background:#000;}
+  body{
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    background: url('Tetrus.jpg') no-repeat center center fixed; background-size:cover; color:var(--accent);
+    overflow:hidden;
+  }
+  h1{ margin:12px 0 6px; text-shadow:0 0 10px #f0f,0 0 20px var(--accent); }
+  canvas{ border:4px solid var(--accent); box-shadow:0 0 30px var(--accent); background: rgba(0,0,0,0.65); width:80vw; max-width:360px; height:60vh; display:block; }
+  #score{ margin-top:10px; font-size:18px; text-shadow:0 0 6px var(--accent); }
+  .action-buttons{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; justify-content:center; }
+  .action-buttons button{ padding:8px 18px; border-radius:10px; background:linear-gradient(90deg,#00ffff,#ff00ff); color:white; border:none; font-weight:bold; cursor:pointer; min-width:120px; box-shadow:0 0 20px var(--accent); }
+  .control-btn{ background:rgba(0,255,255,0.12); border:2px solid var(--accent); border-radius:10px; width:60px; height:60px; font-size:22px; color:#fff; box-shadow:0 0 10px #00ffff; cursor:pointer; }
+  #walletInfo{ margin-top:12px; text-align:center; max-width:360px; word-break:break-word; color:var(--accent); text-shadow:0 0 6px #00ffff; display:none;}
+  /* fee modal */
+  #feeModal{ position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:2px solid var(--accent); padding:18px; border-radius:12px; width:92%; max-width:420px; display:none; z-index:4000; color:var(--accent); box-shadow:0 0 40px rgba(0,255,255,0.06); }
+  #feeModal h3{ text-align:center; margin:0 0 10px; }
+  #feeModal .row{ display:flex; justify-content:space-between; margin:8px 0; font-size:14px; }
+  #feeModal .big{ font-size:16px; font-weight:bold; }
+  #feeModal .actions{ display:flex; gap:10px; margin-top:14px; }
+  #feeModal button{ flex:1; padding:10px; border-radius:8px; border:none; cursor:pointer; font-weight:bold; }
+  #feeModal .cancel{ background:#222;color:#fff; border:1px solid #444; }
+  #feeModal .confirm{ background:linear-gradient(90deg,#00ffcc,#00aaff); color:#000; }
+  /* glowing block effect (applied in draw) via shadow + outline CSS fallback on canvas is not possible; we emulate via extra drawing in JS */
+  #bonus-animation{ position:absolute; top:30%; left:50%; transform:translate(-50%,-50%); opacity:0; pointer-events:none; z-index:3000; }
+</style>
+</head>
+<body>
+  <h1>TiffyAI Tetris</h1>
+  <canvas id="tetris" width="300" height="600"></canvas>
+  <div id="score">💰 TIFFY: 0.00000000</div>
+
+  <div class="action-buttons">
+    <button id="restartBtn">RESTART</button>
+    <button id="connectBtn">CONNECT & WITHDRAW</button>
+    <button id="withdrawBtn" style="display:none;">WITHDRAW</button>
+  </div>
+
+  <div id="walletInfo">
+    Connected wallet: <span id="walletAddress">-</span><br/>
+    Your accumulated TIFFY: <span id="tiffyCount">0</span><br/>
+    Live price: $<span id="livePrice">-</span><br/>
+    USD Value: $<span id="usdValue">0.00</span>
+  </div>
+
+  <!-- Fee modal -->
+  <div id="feeModal" role="dialog" aria-modal="true">
+    <h3>Confirm Withdrawal</h3>
+    <div class="row"><div>Accumulated TIFFY:</div><div id="modalTiffy">- TIFFY</div></div>
+    <div class="row"><div>TIFFY value (BNB):</div><div id="modalTiffyBNB">- BNB</div></div>
+    <div class="row"><div>Contract fee:</div><div id="modalContractFee">- BNB</div></div>
+    <div class="row"><div>Est. network fee:</div><div id="modalGasFee">- BNB</div></div>
+    <div class="row big"><div>Total estimate:</div><div id="modalTotal">- BNB</div></div>
+    <div class="row"><div>Approx USD:</div><div id="modalUSD">-</div></div>
+    <div style="font-size:12px;margin-top:8px;color:#aaffff;">You will call contract.claim() for 1 TIFFY (24h limit). The remaining TIFFY will be paid from backend. This is an estimate; your wallet will show final gas once you confirm.</div>
+    <div class="actions">
+      <button class="cancel" id="feeCancel">Cancel</button>
+      <button class="confirm" id="feeConfirm">Proceed</button>
+    </div>
+  </div>
+
+  <!-- Touch Controls -->
+  <div id="touch-controls" style="margin-top:12px;">
+    <button class="control-btn" onclick="handleTouch('left')">⬅️</button>
+    <button class="control-btn" onclick="handleTouch('rotate')">🔄</button>
+    <button class="control-btn" onclick="handleTouch('right')">➡️</button>
+  </div>
+
+  <!-- Bonus Animation image -->
+  <img id="bonus-animation" src="TiffyAI-Token.png" width="120" />
+
+  <!-- Sounds -->
+  <audio id="rowSound" src="row.wav" preload="auto"></audio>
+  <audio id="overSound" src="over.wav" preload="auto"></audio>
+  <audio id="clickSound" src="click.wav" preload="auto"></audio>
+  <audio id="withdrawSound" src="withdraw.wav" preload="auto"></audio>
+
+  <!-- Web3Modal v2 + Ethereum client (as ES modules) -->
+  <script type="module">
+  // -------------------------
+  // IMPORTANT: Web3Modal v2 / WalletConnect v2 setup using your Reown project id
+  // Reown Project ID (WalletConnect v2) you provided:
+  const REOWN_PROJECT_ID = "bf40c7dcdb05f06f2769573103007576";
+
+  // We'll attempt to import the Web3Modal v2 modules from unpkg.
+  // If you prefer to self-host or pin versions, replace the import URLs below.
+  import { Web3Modal } from "https://unpkg.com/@web3modal/html@2.6.4/dist/index.js";
+  import { EthereumClient, w3mConnectors, w3mProvider } from "https://unpkg.com/@web3modal/ethereum@2.6.4/dist/index.js";
+  import { createClient, configureChains } from "https://unpkg.com/@wagmi/core@1.3.1/dist/index.js";
+  import { publicProvider } from "https://unpkg.com/@wagmi/core@1.3.1/dist/providers/public.js";
+
+  // Minimal chain setup: BSC mainnet
+  const BSC_CHAIN = {
+    id: 56,
+    name: "BSC",
+    network: "bsc",
+    nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
+    rpcUrls: { public: { http: ["https://bsc-dataseed.binance.org/"] }, default: { http: ["https://bsc-dataseed.binance.org/"] } }
+  };
+
+  // configure wagmi + provider
+  const { provider } = configureChains([BSC_CHAIN], [publicProvider()]);
+  // create wagmi client
+  const wagmiClient = createClient({
+    autoConnect: false,
+    connectors: w3mConnectors({ projectId: REOWN_PROJECT_ID, version: 2, chains: [BSC_CHAIN] }),
+    provider
+  });
+
+  // create ethereum client for web3modal
+  const ethereumClient = new EthereumClient(wagmiClient, [BSC_CHAIN]);
+
+  // create Web3Modal
+  const web3Modal = new Web3Modal({
+    projectId: REOWN_PROJECT_ID,
+    ethereumClient
+  });
+
+  // -------------------------
+  // Rest of your game + wallet logic (keeps original logic intact + UI enhancements)
+  (function(){
+    // --- DOM refs
+    const canvas = document.getElementById("tetris");
+    const ctx = canvas.getContext("2d");
+    const rowSound = document.getElementById("rowSound");
+    const overSound = document.getElementById("overSound");
+    const clickSound = document.getElementById("clickSound");
+    const withdrawSound = document.getElementById("withdrawSound");
+    const restartBtn = document.getElementById("restartBtn");
+    const withdrawBtn = document.getElementById("withdrawBtn");
+    const connectBtn = document.getElementById("connectBtn");
+    const scoreDisplay = document.getElementById("score");
+    const bonusImg = document.getElementById("bonus-animation");
+
+    const walletInfo = document.getElementById("walletInfo");
+    const walletAddressDisplay = document.getElementById("walletAddress");
+    const tiffyCountDisplay = document.getElementById("tiffyCount");
+    const livePriceDisplay = document.getElementById("livePrice");
+    const usdValueDisplay = document.getElementById("usdValue");
+
+    // modal refs
+    const feeModal = document.getElementById("feeModal");
+    const modalContractFee = document.getElementById("modalContractFee");
+    const modalGasFee = document.getElementById("modalGasFee");
+    const modalTotal = document.getElementById("modalTotal");
+    const modalUSD = document.getElementById("modalUSD");
+    const modalTiffy = document.getElementById("modalTiffy");
+    const modalTiffyBNB = document.getElementById("modalTiffyBNB");
+    const feeCancel = document.getElementById("feeCancel");
+    const feeConfirm = document.getElementById("feeConfirm");
+
+    const ROWS = 20, COLS = 10, BLOCK_SIZE = 30;
+    const board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+    const colors = ['#000', '#00f7f7', '#f0f', '#7fff7f', '#ffff6b', '#ff7575', '#6b9eff', '#5fffd7'];
+
+    let score = parseFloat(localStorage.getItem('tetrusScore')) || 0;
+    let dropInterval = 500, dropCounter = 0, lastTime = 0, gameOver = false;
+
+    let piece = { matrix: createPiece('T'), pos: { x: 3, y: 0 } };
+
+    // blockchain
+    const contractAddress = "0xE488253DD6B4D31431142F1b7601C96f24Fb7dd5";
+    const contractABI = [
+      {inputs:[],name:"claim",outputs:[],stateMutability:"payable",type:"function"},
+      {inputs:[],name:"FIXED_BNB_FEE",outputs:[{internalType:"uint256",name:"",type:"uint256"}],stateMutability:"view",type:"function"}
+    ];
+    const BACKEND = "https://tiffyai-wh-wa.onrender.com/reward";
+
+    let web3 = null, provider = null, account = null, contract = null, fee = null, wagmiSigner = null;
+
+    // --- game drawing with glow effect: we add soft shadow by drawing larger translucent rectangles underneath
+    function drawMatrix(matrix, offset){
+      matrix.forEach((row, y) => {
+        row.forEach((value, x) => {
+          if (value !== 0) {
+            const px = (x + offset.x) * BLOCK_SIZE;
+            const py = (y + offset.y) * BLOCK_SIZE;
+            // glow: draw a soft larger rect using globalAlpha then normal rect
+            ctx.save();
+            ctx.globalAlpha = 0.18;
+            ctx.fillStyle = colors[value];
+            ctx.fillRect(px - 4, py - 4, BLOCK_SIZE + 8, BLOCK_SIZE + 8);
+            ctx.restore();
+            // main block
+            ctx.fillStyle = colors[value];
+            ctx.fillRect(px, py, BLOCK_SIZE, BLOCK_SIZE);
+            // inner highlight
+            ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+            ctx.strokeRect(px+1, py+1, BLOCK_SIZE-2, BLOCK_SIZE-2);
+            // border
+            ctx.strokeStyle = '#111';
+            ctx.strokeRect(px, py, BLOCK_SIZE, BLOCK_SIZE);
+          }
+        });
+      });
+    }
+
+    function createPiece(type){
+      const pieces = {
+        T: [[0,1,0],[1,1,1],[0,0,0]],
+        O: [[2,2],[2,2]],
+        L: [[0,0,3],[3,3,3],[0,0,0]],
+        J: [[4,0,0],[4,4,4],[0,0,0]],
+        I: [[0,0,0,0],[5,5,5,5],[0,0,0,0]],
+        S: [[0,6,6],[6,6,0],[0,0,0]],
+        Z: [[7,7,0],[0,7,7],[0,0,0]]
+      };
+      return pieces[type];
+    }
+
+    function merge(board, piece){
+      piece.matrix.forEach((row,y) => row.forEach((value,x) => {
+        if (value !== 0) board[y + piece.pos.y][x + piece.pos.x] = value;
+      }));
+    }
+
+    function collide(board, piece){
+      for (let y=0;y<piece.matrix.length;++y){
+        for (let x=0;x<piece.matrix[y].length;++x){
+          if (piece.matrix[y][x] !== 0 && (board[y + piece.pos.y] && board[y + piece.pos.y][x + piece.pos.x]) !== 0) return true;
+        }
+      }
+      return false;
+    }
+
+    function playerDrop(){
+      piece.pos.y++;
+      if (collide(board,piece)){
+        piece.pos.y--;
+        merge(board,piece);
+        resetPiece();
+        sweepRows();
+      }
+      dropCounter = 0;
+    }
+
+    function sweepRows(){
+      let rowsCleared=0;
+      outer: for (let y=board.length-1;y>=0;y--){
+        for (let x=0;x<board[y].length;x++){
+          if (board[y][x]===0) continue outer;
+        }
+        board.splice(y,1);
+        board.unshift(Array(COLS).fill(0));
+        rowsCleared++;
+      }
+      if (rowsCleared>0){
+        rowSound.play();
+        score += rowsCleared * 0.05;
+        if (rowsCleared >= 2){
+          score += 1;
+          triggerBonusAnimation();
+        }
+        localStorage.setItem('tetrusScore', score);
+        updateScore();
+      }
+    }
+
+    function resetPiece(){
+      const pieces = 'TJLOSZI';
+      piece.matrix = createPiece(pieces[Math.floor(Math.random()*pieces.length)]);
+      piece.pos.y = 0;
+      piece.pos.x = Math.floor(COLS/2) - Math.floor(piece.matrix[0].length/2);
+      if (collide(board,piece)){
+        overSound.play();
+        alert("Game Over! 💰 TIFFY: " + score.toFixed(8));
+        gameOver = true;
+      }
+    }
+
+    function update(time=0){
+      if (gameOver) return;
+      const deltaTime = time - lastTime;
+      lastTime = time;
+      dropCounter += deltaTime;
+      if (dropCounter > dropInterval) playerDrop();
+      draw();
+      requestAnimationFrame(update);
+    }
+
+    function draw(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      drawMatrix(board,{x:0,y:0});
+      drawMatrix(piece.matrix,piece.pos);
+    }
+
+    function updateScore(){
+      scoreDisplay.textContent = "💰 TIFFY: " + score.toFixed(8);
+      updateWalletDisplay();
+    }
+
+    function handleTouch(action){
+      if (gameOver) return;
+      if (action === 'left') piece.pos.x--;
+      if (action === 'right') piece.pos.x++;
+      if (action === 'down') playerDrop();
+      if (action === 'rotate'){
+        piece.matrix = piece.matrix[0].map((_,i)=>piece.matrix.map(row=>row[i])).reverse();
+        if (collide(board,piece)) piece.matrix = piece.matrix[0].map((_, i) => piece.matrix.map(row => row[row.length - 1 - i]));
+      }
+    }
+
+    function triggerBonusAnimation(){
+      bonusImg.style.animation = "none";
+      void bonusImg.offsetWidth;
+      bonusImg.style.animation = "bonusFade 2s ease-out forwards";
+    }
+
+    // ---------------- Wallet (v2) helpers ----------------
+
+    // connect using Web3Modal v2
+    async function connectWallet(){
+      try {
+        // show the modal
+        await web3Modal.openModal();
+        // wait for connection via wagmi client (get provider from ethereumClient)
+        const externalProvider = await ethereumClient.getProvider(); // returns generic provider
+        provider = externalProvider;
+        web3 = new Web3(provider);
+        const accounts = await web3.eth.getAccounts();
+        account = accounts[0];
+        contract = new web3.eth.Contract(contractABI, contractAddress);
+        // read contract FIXED fee
+        try { fee = await contract.methods.FIXED_BNB_FEE().call(); } catch(e){ console.warn("FIXED_BNB_FEE read failed:", e); fee = null; }
+
+        walletAddressDisplay.textContent = account;
+        walletInfo.style.display = "block";
+        connectBtn.style.display = "none";
+        withdrawBtn.style.display = "inline-block";
+
+        // subscribe to disconnect events (walletconnect)
+        try {
+          if (provider && provider.on) {
+            provider.on("disconnect", handleProviderDisconnect);
+            provider.on("accountsChanged", handleAccountsChanged);
+            provider.on("chainChanged", handleChainChanged);
+          }
+        } catch(e){ console.warn("provider event attach failed", e); }
+
+        updateWalletDisplay();
+      } catch (err) {
+        alert("❌ Wallet connection failed: " + (err?.message || err));
+      } finally {
+        // close the modal UI if still open
+        try { web3Modal.closeModal(); } catch(e){}
+      }
+    }
+
+    function handleProviderDisconnect(){
+      // cleanup
+      disconnectWalletUI();
+    }
+
+    function handleAccountsChanged(accounts){
+      if (!accounts || accounts.length === 0) {
+        disconnectWalletUI();
+      } else {
+        account = accounts[0];
+        walletAddressDisplay.textContent = account;
+        updateWalletDisplay();
+      }
+    }
+
+    function handleChainChanged(chainId){
+      // ensure BSC chain (56)
+      const cid = parseInt(chainId,16);
+      if (cid !== 56) {
+        alert("❗ Please switch to BNB Smart Chain in your wallet.");
+      }
+    }
+
+    // disconnect UI & provider
+    async function disconnectWalletUI(){
+      try {
+        // if provider supports close (walletconnect), try it
+        if (provider && provider.disconnect) {
+          try { await provider.disconnect(); } catch(e){ /* ignore */ }
+        }
+      } catch(e){}
+      provider = null;
+      web3 = null;
+      account = null;
+      contract = null;
+      fee = null;
+
+      walletAddressDisplay.textContent = "-";
+      walletInfo.style.display = "none";
+      withdrawBtn.style.display = "none";
+      connectBtn.style.display = "inline-block";
+
+      // re-enable controls
+      document.getElementById('touch-controls').style.display = "flex";
+    }
+
+    // Pre-confirm modal: compute total TIFFY, value in BNB, estimate gas fee and show breakdown.
+    async function preConfirmAndSend(){
+      if (!account || !contract) { alert("Connect wallet first."); return; }
+
+      // Read fee fresh
+      try { fee = await contract.methods.FIXED_BNB_FEE().call(); } catch(e) { console.warn("read FIXED_BNB_FEE failed", e); }
+
+      // Compute accumulated TIFFY from localStorage keys for this wallet
+      const key = `tiffyClaimed_${account}`;
+      const accumulated = parseInt(localStorage.getItem(key) || "0");
+
+      // fetch live price to compute TIFFY -> USD
+      let livePrice = parseFloat(livePriceDisplay.textContent) || 0;
+
+      // Work out TIFFY to BNB approximation: we have price in USD (tiffyToUSD), but need TIFFY -> BNB.
+      // We'll derive BNB price from TIFFY USD and BNB USD via the price.json if it contains both.
+      // Fallback: assume TIFFY -> USD is present and we can approximate BNB price by dividing by an external BNB price if present.
+      let tiffyToUSD = livePrice; // already in USD per TIFFY
+      // Attempt to fetch BNB price from the same price.json if provided
+      let bnbPriceUSD = null;
+      try {
+        const r = await fetch("/TIFFY-Market-Value/price.json");
+        const d = await r.json();
+        if (d && d.bnbToUSD) bnbPriceUSD = parseFloat(d.bnbToUSD);
+      } catch(e){ /* ignore */ }
+
+      // TIFFY -> BNB = (TIFFY_USD / BNB_USD)
+      let tiffyToBNB = 0;
+      if (tiffyToUSD && bnbPriceUSD) {
+        tiffyToBNB = tiffyToUSD / bnbPriceUSD;
+      } else {
+        // fallback: if no bnb price available, simply show 0 and keep contract fee shown
+        tiffyToBNB = 0;
+      }
+
+      // Gas estimation
+      let estimatedGas = 150000;
+      let gasPrice = "20000000000"; // 20 gwei fallback
+      try {
+        estimatedGas = await contract.methods.claim().estimateGas({ from: account, value: fee || 0 });
+      } catch (e) {
+        console.warn("estimateGas failed, using fallback", e);
+      }
+      try {
+        gasPrice = await web3.eth.getGasPrice();
+      } catch(e) { console.warn("getGasPrice failed", e); }
+
+      // convert to BNB
+      const gasBNIWei = BigInt(estimatedGas) * BigInt(gasPrice);
+      const gasBNB = parseFloat(web3.utils.fromWei(gasBNIWei.toString(), "ether"));
+
+      const feeBNB = fee ? parseFloat(web3.utils.fromWei(fee.toString(), "ether")) : 0;
+      const totalBNB = feeBNB + gasBNB;
+
+      const approxUSD = ((totalBNB) * ( ( (typeof livePrice === 'number' && bnbPriceUSD) ? bnbPriceUSD : (livePrice * (bnbPriceUSD ? (1/bnbPriceUSD) : 0) ) ) ) ).toFixed(2);
+      // For clarity: approxUSD is best-effort. We also show TIFFY amounts in USD using livePrice.
+
+      // Set modal values
+      modalTiffy.textContent = accumulated + " TIFFY";
+      modalTiffyBNB.textContent = ( (accumulated * tiffyToBNB).toFixed(6) ) + " BNB";
+      modalContractFee.textContent = feeBNB.toFixed(6) + " BNB";
+      modalGasFee.textContent = gasBNB.toFixed(6) + " BNB";
+      modalTotal.textContent = totalBNB.toFixed(6) + " BNB";
+      modalUSD.textContent = "$" + ( (accumulated * livePrice).toFixed(2) ) + " (TIFFY USD) / est " + approxUSD + " (BNB->USD)";
+
+      feeModal.style.display = "block";
+
+      return new Promise(resolve => {
+        feeCancel.onclick = () => { feeModal.style.display = "none"; resolve(false); };
+        feeConfirm.onclick = () => { feeModal.style.display = "none"; resolve({ estimatedGas, gasPrice, accumulated }); };
+      });
+    }
+
+    // Withdraw flow using preConfirmAndSend
+    async function withdraw(){
+      if (!account || !contract) {
+        await connectWallet();
+        if(!account) return;
+      }
+
+      const key = `tiffyClaimed_${account}`;
+      let claimedCount = parseInt(localStorage.getItem(key) || "0");
+      if (claimedCount <= 0) { alert("You have no TIFFY to withdraw."); return; }
+
+      const choice = await preConfirmAndSend();
+      if (!choice) return;
+      const { estimatedGas, gasPrice, accumulated } = choice;
+
+      withdrawBtn.disabled = true;
+      withdrawBtn.textContent = "Processing...";
+      withdrawSound.play();
+
+      try {
+        // call contract.claim() paying the fixed fee (claim only 1 TIFFY on-chain)
+        const tx = await contract.methods.claim().send({
+          from: account,
+          value: fee,
+          gas: Math.floor(estimatedGas * 1.2),
+          gasPrice: gasPrice
+        });
+
+        // call backend to pay remainder (accumulated - 1)
+        const backendAmt = Math.max(0, accumulated - 1);
+        if (backendAmt > 0) {
+          await fetch(BACKEND, {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ wallet: account, amount: backendAmt })
+          }).catch(e => console.warn("Backend reward failed:", e));
+        }
+
+        // clear local claimed tally for this wallet
+        localStorage.setItem(key, "0");
+        alert("✅ Withdrawal Complete!");
+        updateWalletDisplay();
+      } catch (e) {
+        console.error(e);
+        alert("❌ Withdraw failed: " + (e?.message || e));
+      } finally {
+        withdrawBtn.disabled = false;
+        withdrawBtn.textContent = "WITHDRAW";
+      }
+    }
+
+    // update wallet UI values
+    function updateWalletDisplay(){
+      if (!account) return;
+      const key = `tiffyClaimed_${account}`;
+      const claimedCount = parseInt(localStorage.getItem(key) || "0");
+      tiffyCountDisplay.textContent = claimedCount;
+      const price = parseFloat(livePriceDisplay.textContent) || 0;
+      usdValueDisplay.textContent = (claimedCount * price).toFixed(2);
+      withdrawBtn.style.display = claimedCount > 0 ? "inline-block" : "none";
+      walletInfo.style.display = 'block';
+    }
+
+    // fetch live price from your JSON
+    async function fetchLivePrice(){
+      try {
+        const response = await fetch("/TIFFY-Market-Value/price.json");
+        const data = await response.json();
+        const price = parseFloat(data.tiffyToUSD);
+        if (!isNaN(price)) {
+          livePriceDisplay.textContent = price.toFixed(2);
+        } else {
+          livePriceDisplay.textContent = "-";
+        }
+      } catch(e){
+        livePriceDisplay.textContent = "-";
+      }
+    }
+
+    // restart logic: must disconnect wallet and restart the game fresh
+    restartBtn.addEventListener("click", async () => {
+      clickSound.play();
+      // disconnect wallet (UI + provider)
+      try {
+        // close any web3modal sessions
+        await web3Modal.closeModal();
+      } catch(e){ /* ignore */ }
+      // attempt to disconnect provider if possible
+      try { if (provider && provider.disconnect) await provider.disconnect(); } catch(e){ /* ignore */ }
+
+      // reset variables & UI
+      provider = null;
+      web3 = null;
+      account = null;
+      contract = null;
+      fee = null;
+      walletAddressDisplay.textContent = "-";
+      walletInfo.style.display = "none";
+      withdrawBtn.style.display = "none";
+      connectBtn.style.display = "inline-block";
+
+      // reset game board
+      for (let y=0;y<ROWS;y++) board[y].fill(0);
+      gameOver = false;
+      resetPiece();
+      update();
+      // re-enable controls
+      document.getElementById('touch-controls').style.display = "flex";
+    });
+
+    // attach handlers
+    connectBtn.onclick = connectWallet;
+    withdrawBtn.onclick = withdraw;
+
+    // --- touch handler global
+    window.handleTouch = handleTouch;
+
+    // init
+    updateScore();
+    resetPiece();
+    update();
+    fetchLivePrice();
+    setInterval(fetchLivePrice, 60000);
+  })();
+  </script>
+</body>
+</html>
