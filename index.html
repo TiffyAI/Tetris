@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TiffyAI Tetris</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+<style>
+  body {
+    background: linear-gradient(135deg, #0f0f0f, #1a1a1a);
+    color: white;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+    padding: 0;
+  }
+  canvas {
+    border: 2px solid #fff;
+    box-shadow: 0 0 25px #4af0f8;
+    margin-top: 20px;
+    background: #000;
+  }
+  .popup {
+    display: none;
+    position: fixed;
+    top: 30%;
+    left: 50%;
+    transform: translate(-50%, -30%);
+    background: rgba(20,20,20,0.95);
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 0 20px #ffd700;
+  }
+  .popup h2 {
+    margin: 0;
+    color: gold;
+    text-shadow: 0 0 8px #ffd700;
+  }
+  .popup button {
+    margin-top: 15px;
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    background: gold;
+    color: black;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 0 12px gold;
+  }
+  #controls {
+    margin-top: 15px;
+  }
+  #restartBtn {
+    background: #ff4d4d;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<h1>TiffyAI Tetris</h1>
+<canvas id="tetris" width="240" height="400"></canvas>
+
+<div id="controls">
+  <button id="connectWallet">Connect Wallet</button>
+  <button id="restartBtn">Restart</button>
+</div>
+
+<div class="popup" id="rewardPopup">
+  <h2>Claim Your TIFFY</h2>
+  <p id="tiffyAmount">Calculating your reward...</p>
+  <button id="claimBtn">Claim Now</button>
+</div>
+
+<script>
+// ==== Web3 Setup ====
+let web3;
+let accounts = [];
+const CONTRACT_ADDRESS = "0xE488253DD6B4D31431142F1b7601C96f24Fb7dd5";
+const CONTRACT_ABI = [{"inputs":[],"name":"claim","outputs":[],"stateMutability":"payable","type":"function"}];
+const BACKEND_API = "https://tiffyai-wh-wa.onrender.com/reward";
+
+async function connectWallet() {
+  if (!window.ethereum) return alert("MetaMask not available");
+  web3 = new Web3(window.ethereum);
+  accounts = await ethereum.request({ method: "eth_requestAccounts" });
+  document.getElementById("connectWallet").style.display = "none";
+}
+
+async function disconnectWallet() {
+  accounts = [];
+  web3 = null;
+  document.getElementById("connectWallet").style.display = "inline-block";
+}
+
+// ==== Restart Button ====
+document.getElementById("restartBtn").addEventListener("click", () => {
+  disconnectWallet();
+  initGame();
+});
+
+// ==== Popup Logic ====
+function showRewardPopup() {
+  let stored = parseInt(localStorage.getItem("tiffyBlueKeys") || "0");
+  let tiffyValue = stored * 0.1; // Example conversion: adjust as needed
+  if (tiffyValue > 10) tiffyValue = 10;
+  document.getElementById("tiffyAmount").innerText = `You will receive ${tiffyValue.toFixed(2)} TIFFY`;
+  document.getElementById("rewardPopup").style.display = "block";
+}
+document.getElementById("claimBtn").addEventListener("click", payUserTokens);
+
+// ==== Claim Function ====
+async function payUserTokens() {
+  if (!accounts.length) return alert("Connect wallet first");
+  const contract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+  const bnbFee = web3.utils.toWei("0.0015", "ether");
+
+  await contract.methods.claim().send({
+    from: accounts[0],
+    value: bnbFee
+  });
+
+  const stored = parseInt(localStorage.getItem("tiffyBlueKeys") || "0");
+  const payoutAmount = Math.min(stored * 0.1, 10) - 1;
+
+  await fetch(BACKEND_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ wallet: accounts[0], amount: payoutAmount })
+  });
+
+  localStorage.setItem("tiffyBlueKeys", "0");
+  document.getElementById("rewardPopup").style.display = "none";
+  alert("🎉 TIFFY sent successfully!");
+}
+
+// ==== Game Logic ====
+const canvas = document.getElementById('tetris');
+const context = canvas.getContext('2d');
+context.scale(20, 20);
+
+function arenaSweep() {
+  // same logic as your original
+}
+
+function playerDrop() {
+  // same logic as your original
+}
+
+function playerMove(dir) {
+  // same logic as your original
+}
+
+function playerRotate(dir) {
+  // same logic as your original
+}
+
+function drawMatrix(matrix, offset) {
+  matrix.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if (value !== 0) {
+        const colors = [
+          null,
+          'linear-gradient(45deg, #ff4d4d, #ff9999)',
+          'linear-gradient(45deg, #4dff4d, #99ff99)',
+          'linear-gradient(45deg, #4d4dff, #9999ff)',
+          'linear-gradient(45deg, #ffff4d, #ffff99)',
+          'linear-gradient(45deg, #ff4dff, #ff99ff)',
+          'linear-gradient(45deg, #4dffff, #99ffff)',
+          'linear-gradient(45deg, #ffa64d, #ffd699)',
+        ];
+        context.fillStyle = '#fff';
+        context.fillRect(x + offset.x, y + offset.y, 1, 1);
+        context.fillStyle = colors[value];
+        context.shadowBlur = 15;
+        context.shadowColor = colors[value];
+        context.fillRect(x + offset.x, y + offset.y, 1, 1);
+      }
+    });
+  });
+}
+
+function draw() {
+  context.fillStyle = '#000';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  drawMatrix(arena, {x:0, y:0});
+  drawMatrix(player.matrix, player.pos);
+}
+
+function update() {
+  draw();
+  requestAnimationFrame(update);
+}
+
+function initGame() {
+  // reset arena, player, etc.
+}
+
+initGame();
+update();
+</script>
+
+</body>
+</html>
